@@ -1,13 +1,103 @@
 import { render } from "preact";
-import { useState } from "preact/hooks";
+import { useState, useEffect } from "preact/hooks";
 import "./style.css";
 
 function App() {
+  const [currentPage, setCurrentPage] = useState("main"); // "main" hoặc "history"
   const [originalAmount, setOriginalAmount] = useState("");
   const [finalAmount, setFinalAmount] = useState("");
   const [shippingFee, setShippingFee] = useState("");
   const [people, setPeople] = useState([{ id: 1, name: "Người 1", amount: 0 }]);
   const [results, setResults] = useState(null);
+  const [paymentHistory, setPaymentHistory] = useState([]);
+
+  // Load lịch sử từ localStorage khi component mount
+  useEffect(() => {
+    const savedHistory = localStorage.getItem("splitBillHistory");
+    if (savedHistory) {
+      try {
+        setPaymentHistory(JSON.parse(savedHistory));
+      } catch (error) {
+        console.error("Lỗi khi load lịch sử:", error);
+      }
+    }
+  }, []);
+
+  // Lưu kết quả thanh toán vào localStorage
+  const savePaymentResult = (result) => {
+    const newHistoryItem = {
+      id: Date.now(),
+      timestamp: new Date().toLocaleString("vi-VN"),
+      ...result,
+    };
+
+    const updatedHistory = [newHistoryItem, ...paymentHistory].slice(0, 5); // Giữ tối đa 5 lần
+    setPaymentHistory(updatedHistory);
+
+    try {
+      localStorage.setItem("splitBillHistory", JSON.stringify(updatedHistory));
+    } catch (error) {
+      console.error("Lỗi khi lưu lịch sử:", error);
+    }
+  };
+
+  // Xóa một lịch sử cụ thể
+  const deleteHistoryItem = (id) => {
+    const updatedHistory = paymentHistory.filter((item) => item.id !== id);
+    setPaymentHistory(updatedHistory);
+
+    try {
+      localStorage.setItem("splitBillHistory", JSON.stringify(updatedHistory));
+    } catch (error) {
+      console.error("Lỗi khi xóa lịch sử:", error);
+    }
+  };
+
+  // Xóa toàn bộ lịch sử
+  const clearAllHistory = () => {
+    setPaymentHistory([]);
+    try {
+      localStorage.removeItem("splitBillHistory");
+    } catch (error) {
+      console.error("Lỗi khi xóa toàn bộ lịch sử:", error);
+    }
+  };
+
+  // Xử lý focus vào input số tiền hàng
+  const handleOriginalAmountFocus = (e) => {
+    e.target.select();
+    // Nếu giá trị là 0, xóa để trống
+    if (e.target.value === "0") {
+      setOriginalAmount("");
+    }
+  };
+
+  // Xử lý focus vào input phí ship
+  const handleShippingFeeFocus = (e) => {
+    e.target.select();
+    // Nếu giá trị là 0, xóa để trống
+    if (e.target.value === "0") {
+      setShippingFee("");
+    }
+  };
+
+  // Xử lý focus vào input số tiền cuối cùng
+  const handleFinalAmountFocus = (e) => {
+    e.target.select();
+    // Nếu giá trị là 0, xóa để trống
+    if (e.target.value === "0") {
+      setFinalAmount("");
+    }
+  };
+
+  // Xử lý focus vào input số tiền của người
+  const handlePersonAmountFocus = (personId, e) => {
+    e.target.select();
+    // Nếu giá trị là 0, xóa để trống
+    if (e.target.value === "0") {
+      updatePerson(personId, "amount", "");
+    }
+  };
 
   const addPerson = () => {
     const newId = people.length + 1;
@@ -49,7 +139,7 @@ function App() {
         ...person,
         payAmount: perPerson,
       }));
-      setResults({
+      const result = {
         originalTotal: original,
         shippingFee: shipping,
         originalWithShipping,
@@ -57,7 +147,10 @@ function App() {
         finalTotal: final,
         people: newPeople,
         splitType: "equal",
-      });
+      };
+      setResults(result);
+      // Tự động lưu kết quả
+      savePaymentResult(result);
     } else {
       // Chia theo tỷ lệ
       const newPeople = people.map((person) => {
@@ -69,7 +162,7 @@ function App() {
           payAmount,
         };
       });
-      setResults({
+      const result = {
         originalTotal: original,
         shippingFee: shipping,
         originalWithShipping,
@@ -77,7 +170,10 @@ function App() {
         finalTotal: final,
         people: newPeople,
         splitType: "proportional",
-      });
+      };
+      setResults(result);
+      // Tự động lưu kết quả
+      savePaymentResult(result);
     }
   };
 
@@ -94,10 +190,118 @@ function App() {
       <header className="header">
         <h1>💰 Chia Tiền</h1>
         <p>Chia sẻ hóa đơn một cách công bằng</p>
+        <nav className="nav">
+          <button
+            onClick={() => setCurrentPage("main")}
+            className={`nav-btn ${currentPage === "main" ? "active" : ""}`}
+          >
+            🏠 Trang chính
+          </button>
+          <button
+            onClick={() => setCurrentPage("history")}
+            className={`nav-btn ${currentPage === "history" ? "active" : ""}`}
+          >
+            📋 Lịch sử ({paymentHistory.length})
+          </button>
+        </nav>
       </header>
 
       <main className="main">
-        {!results ? (
+        {currentPage === "history" ? (
+          <div className="history-container">
+            <div className="history-header">
+              <h2>📋 Lịch sử thanh toán</h2>
+              {paymentHistory.length > 0 && (
+                <button onClick={clearAllHistory} className="btn-clear-all">
+                  🗑️ Xóa tất cả
+                </button>
+              )}
+            </div>
+
+            {paymentHistory.length === 0 ? (
+              <div className="empty-history">
+                <p>📝 Chưa có lịch sử thanh toán nào</p>
+                <p>Hãy tính toán và lưu kết quả để xem lịch sử ở đây!</p>
+              </div>
+            ) : (
+              <div className="history-list">
+                {paymentHistory.map((item) => (
+                  <div key={item.id} className="history-item">
+                    <div className="history-item-header">
+                      <div className="history-info">
+                        <span className="history-date">{item.timestamp}</span>
+                        <span className="history-total">
+                          Tổng: {item.finalTotal.toLocaleString("vi-VN")} ₫
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => deleteHistoryItem(item.id)}
+                        className="btn-delete-item"
+                        title="Xóa lịch sử này"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+
+                    <div className="history-summary">
+                      <div className="summary-row">
+                        <span>Số tiền hàng:</span>
+                        <span>
+                          {item.originalTotal.toLocaleString("vi-VN")} ₫
+                        </span>
+                      </div>
+                      <div className="summary-row">
+                        <span>Phí ship:</span>
+                        <span>
+                          +{item.shippingFee.toLocaleString("vi-VN")} ₫
+                        </span>
+                      </div>
+                      <div className="summary-row">
+                        <span>Giảm giá:</span>
+                        <span className="discount">
+                          -{item.discountAmount.toLocaleString("vi-VN")} ₫
+                        </span>
+                      </div>
+                      <div className="summary-row total">
+                        <span>Số tiền cuối:</span>
+                        <span>{item.finalTotal.toLocaleString("vi-VN")} ₫</span>
+                      </div>
+                    </div>
+
+                    <div className="history-split-info">
+                      <p>
+                        {item.splitType === "equal"
+                          ? "✅ Chia đều cho tất cả mọi người"
+                          : "📊 Chia theo tỷ lệ số tiền mỗi người đặt"}
+                      </p>
+                    </div>
+
+                    <div className="history-people">
+                      <h4>Chi tiết từng người:</h4>
+                      {item.people.map((person) => (
+                        <div key={person.id} className="history-person">
+                          <span className="person-name">{person.name}</span>
+                          {item.splitType === "proportional" && (
+                            <span className="person-original">
+                              (Đặt:{" "}
+                              {parseFloat(person.amount || 0).toLocaleString(
+                                "vi-VN"
+                              )}{" "}
+                              ₫)
+                            </span>
+                          )}
+                          <span className="person-pay">
+                            {person.payAmount.toLocaleString("vi-VN")} ₫
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : !results ? (
           <div className="form-container">
             <div className="form-section">
               <h2>📋 Thông tin đơn hàng</h2>
@@ -108,6 +312,7 @@ function App() {
                   id="originalAmount"
                   value={originalAmount}
                   onChange={(e) => setOriginalAmount(e.target.value)}
+                  onFocus={handleOriginalAmountFocus}
                   placeholder="Nhập số tiền hàng..."
                   min="0"
                 />
@@ -120,6 +325,7 @@ function App() {
                   id="shippingFee"
                   value={shippingFee}
                   onChange={(e) => setShippingFee(e.target.value)}
+                  onFocus={handleShippingFeeFocus}
                   placeholder="Nhập phí ship..."
                   min="0"
                 />
@@ -132,6 +338,7 @@ function App() {
                   id="finalAmount"
                   value={finalAmount}
                   onChange={(e) => setFinalAmount(e.target.value)}
+                  onFocus={handleFinalAmountFocus}
                   placeholder="Nhập số tiền cuối cùng..."
                   min="0"
                 />
@@ -172,6 +379,9 @@ function App() {
                             value={person.amount}
                             onChange={(e) =>
                               updatePerson(person.id, "amount", e.target.value)
+                            }
+                            onFocus={(e) =>
+                              handlePersonAmountFocus(person.id, e)
                             }
                             placeholder="0"
                             min="0"
@@ -218,9 +428,11 @@ function App() {
           <div className="results-container">
             <div className="results-header">
               <h2>📊 Kết quả chia tiền</h2>
-              <button onClick={resetForm} className="btn-reset">
-                🔄 Tính lại
-              </button>
+              <div className="results-actions">
+                <button onClick={resetForm} className="btn-reset">
+                  🔄 Tính lại
+                </button>
+              </div>
             </div>
 
             <div className="summary">
@@ -261,6 +473,9 @@ function App() {
                 {results.splitType === "equal"
                   ? "✅ Chia đều cho tất cả mọi người"
                   : "📊 Chia theo tỷ lệ số tiền mỗi người đặt"}
+              </p>
+              <p className="auto-save-notice">
+                💾 Kết quả đã được tự động lưu vào lịch sử
               </p>
             </div>
 
