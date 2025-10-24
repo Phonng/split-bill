@@ -2,6 +2,9 @@
 
 Ứng dụng web chia tiền đơn giản và hiệu quả, giúp chia sẻ hóa đơn một cách công bằng giữa nhiều người.
 
+## Link web
+https://split-bill-fake.netlify.app/
+
 ## ✨ Tính năng
 
 - **Nhập thông tin đơn hàng:** Số tiền hàng, phí ship, số tiền cuối cùng
